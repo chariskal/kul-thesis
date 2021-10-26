@@ -9,7 +9,7 @@ __pycache__/
 .png 
 
 # datasets
-VOCDevkit/
+VOCdevkit/
 kvasir-dataset-v2/
 
 # C extensions
