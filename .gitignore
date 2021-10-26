@@ -7,9 +7,10 @@ __pycache__/
 .jpg
 .jpeg
 .png 
+.npy
 
 # datasets
-VOCDevkit/
+VOCdevkit/
 kvasir-dataset-v2/
 
 # C extensions
