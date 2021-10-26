@@ -3,6 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Image files
+.jpg
+.jpeg
+.png 
+
+# datasets
+VOCDevkit/
+kvasir-dataset-v2/
+
 # C extensions
 *.so
 
