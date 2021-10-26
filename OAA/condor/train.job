@@ -1,0 +1,40 @@
+# Normal execution
+Universe = vanilla
+
+# I need just one CPU (which is the default)
+RequestCpus = 1
+# I need Y GBytes of RAM (resident memory)
+RequestMemory = 12G
+# It will not run longer than X hours
++RequestWalltime = 3600*10
+# I need one GPU
+Request_GPUs = 2
+
+# Run only on Visics machines with a GPU
+# Requirements = ( machineowner == "Visics" ) && ( CUDAGlobalMemoryMb > 8000 )
+Requirements = ( machineowner == "Visics" )
+
+# I'm a nice person, I think...
+NiceUser = true
+# Mail me only if something is wrong
+Notification = Error
+
+# The job will 'cd' to this directory before starting, be sure you can _write_ here.
+initialdir = /esat/izar/r0833114/OAA/condor
+
+executable = ../scripts/train.sh
+
+arguments = ""
+
+# Output of condors handling of the jobs, will be in 'initialdir'
+Log          = logs/log_train_$(Process).log
+# Standard output of the 'executable', in 'initialdir'
+Output       = logs/log_train_$(Process).out
+# Standard error of the 'executable', in 'initialdir'
+Error        = logs/log_train_$(Process).err
+# Standard error of the 'executable', in 'initialdir'
+
+should_transfer_files = YES
+
+# Start just 1 instance of the job
+Queue 1
