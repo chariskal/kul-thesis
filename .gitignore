@@ -12,7 +12,20 @@ __pycache__/
 # datasets
 VOCdevkit/
 kvasir-dataset-v2/
+results_*
+.neptune/
 
+# large files
+checkpoints/
+.pt
+.pth
+
+# log files
+.log
+.out
+.err
+.docx
+logs/
 # C extensions
 *.so
 
