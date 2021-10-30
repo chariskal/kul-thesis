@@ -1,6 +1,6 @@
 import os, time, random
 import sys
-sys.path.append('/esat/izar/r0833114/SGAN')
+sys.path.append('/home/charis/kul-thesis/SGAN')
 import os.path as osp
 import numpy as np
 import torch
@@ -14,8 +14,8 @@ from lib.dataset.get_dataset import get_dataset         # custom py scripts
 from lib.utils import pyutils                           # same
 from lib.network import sgan                            # same
 import argparse
-from ipdb import set_trace
-from torchsummary import summary
+# from ipdb import set_trace
+# from torchsummary import summary
 
 
 def parse_args():
@@ -23,7 +23,6 @@ def parse_args():
     parser.add_argument("--cfg_file", default=None, type=str)           # all parameters on config file
     args = parser.parse_args()
     args = pyutils.read_yaml2cls(args.cfg_file)
-    
     return args
 
 def lr_poly(base_lr, iter, max_iter, power):                # change learning rate
@@ -57,9 +56,9 @@ if __name__ == '__main__':
         print("{:<25s}:{}".format(key, args[key]))                          # print parsed args
 
     # set randomness
-    np.random.seed(7) # numpy           # randomness with seed
-    torch.manual_seed(7) # cpu
-    random.seed(7) # python
+    np.random.seed(7)       # numpy           # randomness with seed
+    torch.manual_seed(7)    # cpu
+    random.seed(7)          # python
     torch.cuda.manual_seed_all(7) # gpu
     torch.backends.cudnn.deterministic = True # cudnn
     
