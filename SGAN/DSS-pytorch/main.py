@@ -19,6 +19,7 @@ def main(config):
     elif config.mode == 'test':
         test_loader = get_loader(config.test_path, config.label_path, config.img_size, config.batch_size, mode='test',
                                  filename=config.test_file, num_thread=config.num_thread)
+        print(len(test_loader))
         if not os.path.exists(config.test_fold):
             os.mkdir(config.test_fold)
         print('Start of Solver for test ...')

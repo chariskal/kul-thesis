@@ -160,15 +160,15 @@ class Solver(object):
                 
                 mae = self.eval_mae(prob_pred, labels)
                 prec, recall = self.eval_pr(prob_pred, labels, num)
-                # print("[%d] mae: %.4f" % (i, mae))
-                # print("[%d] mae: %.4f" % (i, mae), file=self.test_output)
+                print("[%d] mae: %.4f" % (i, mae))
+                print("[%d] mae: %.4f" % (i, mae), file=self.test_output)
                 avg_mae += mae
                 avg_prec, avg_recall = avg_prec + prec, avg_recall + recall
         avg_mae, avg_prec, avg_recall = avg_mae / img_num, avg_prec / img_num, avg_recall / img_num
         score = (1 + self.beta ** 2) * avg_prec * avg_recall / (self.beta ** 2 * avg_prec + avg_recall)
         score[score != score] = 0  # delete the nan
         # print('average mae: %.4f, max fmeasure: %.4f' % (avg_mae, score.max()))
-        # print('average mae: %.4f, max fmeasure: %.4f' % (avg_mae, score.max()), file=self.test_output)
+        print('average mae: %.4f, max fmeasure: %.4f' % (avg_mae, score.max()), file=self.test_output)
 
     # training phase
     def train(self):
