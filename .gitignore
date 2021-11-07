@@ -12,6 +12,7 @@ __pycache__/
 # datasets
 VOCdevkit/
 kvasir-dataset-v2/
+kvasir-dataset-v2-folds/
 results_*
 .neptune/
 
