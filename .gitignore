@@ -13,9 +13,12 @@ __pycache__/
 VOCdevkit/
 kvasir-dataset-v2/
 kvasir-dataset-v2-folds/
+kvasir-dataset-v2-new/
 results_*
 .neptune/
 
+# segmentation results
+predictions/
 # large files
 checkpoints/
 .pt
