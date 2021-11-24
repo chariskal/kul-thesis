@@ -14,6 +14,7 @@ VOCdevkit/
 kvasir-dataset-v2/
 kvasir-dataset-v2-folds/
 kvasir-dataset-v2-new/
+Kvasir-SEG/
 results_*
 .neptune/
 
@@ -23,6 +24,8 @@ predictions/
 checkpoints/
 .pt
 .pth
+*.pth
+*.pt
 
 # log files
 .log
