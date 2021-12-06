@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/esat/izar/r0833114/SC-CAM/')
+# sys.path.append('/esat/izar/r0833114/SC-CAM/')
 import numpy as np
 import torch
 from torch.backends import cudnn

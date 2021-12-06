@@ -170,8 +170,8 @@ if __name__ == '__main__':
         weights_dict = network.resnet38d.convert_mxnet_to_torch(args.weights)
     elif args.weights[-11:] == '.caffemodel':
         assert args.network == "network.vgg16_cls"
-        import network.vgg16d
-        weights_dict = network.vgg16d.convert_caffe_to_torch(args.weights)
+        # import network.vgg16d
+        # weights_dict = network.vgg16d.convert_caffe_to_torch(args.weights)
     else:
         weights_dict = torch.load(args.weights)
 
