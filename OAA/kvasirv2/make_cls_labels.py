@@ -1,6 +1,6 @@
 import argparse
 import sys
-sys.path.append('/content/drive/MyDrive/MAI/thesis/source/OAA')
+sys.path.append('/home/charis/kul-thesis/OAA/')
 
 import os
 import data
@@ -11,7 +11,7 @@ def store_txt_files(args):
     ROOT_DIR = args.kvasir_root                         # kvasir root
     CLASSES_LIST = os.listdir(ROOT_DIR)                 # different class img in diff directories, name is class
     CLASSES_LIST.sort()
-    ANNOT_FOLDER_NAME = "polyps/masks/"                 # only 'polyps' has seg annotations
+    ANNOT_FOLDER_NAME = "labels"                 # only 'polyps' has seg annotations
 
     val_list = list(range(0,len(CLASSES_LIST)))       # value list for translating Class name to number
     cat_dict = dict(zip(CLASSES_LIST,val_list))         # create dictionary for translation
@@ -38,19 +38,19 @@ def store_txt_files(args):
 
     for img_name,cat in kvasir_img_list:
         folder_name = list(cat_dict.keys())[list(cat_dict.values()).index(cat)]
-        if cat is 6:    # if polyps the also write for seg
+        if cat == 6:    # if polyps the also write for seg
             f_all_seg.write(f'{folder_name}/{img_name} {ANNOT_FOLDER_NAME}{img_name}\n')
         f_all.write(f'{folder_name}/{img_name} {cat}\n')
 
     for img_name,cat in kvasir_train:
         folder_name = list(cat_dict.keys())[list(cat_dict.values()).index(cat)]
-        if cat is 6:    # if polyps the also write for seg
+        if cat == 6:    # if polyps the also write for seg
             f_train_seg.write(f'{folder_name}/{img_name} {ANNOT_FOLDER_NAME}{img_name}\n')
         f_train.write(f'{folder_name}/{img_name} {cat}\n')
 
     for img_name,cat in kvasir_val:
         folder_name = list(cat_dict.keys())[list(cat_dict.values()).index(cat)]
-        if cat is 6:    # if polyps the also write for seg
+        if cat == 6:    # if polyps the also write for seg
             f_val_seg.write(f'{folder_name}/{img_name} {ANNOT_FOLDER_NAME}{img_name}\n')
         f_val.write(f'{folder_name}/{img_name} {cat}\n')
 
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_list", default='train.txt', type=str)
     parser.add_argument("--val_list", default='val.txt', type=str)
     parser.add_argument("--out", default="cls_labels.npy", type=str)
-    parser.add_argument("--kvasir_root", default="/content/drive/MyDrive/MAI/thesis/source/kvasir-dataset-v2/", type=str)
+    parser.add_argument("--kvasir_root", default="/home/charis/kul-thesis/kvasir-dataset-v2/images/", type=str)
     args = parser.parse_args()
 
     if args.store:
