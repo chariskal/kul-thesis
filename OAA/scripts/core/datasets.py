@@ -16,7 +16,7 @@ from tools.ai.torch_utils import one_hot_embedding
 
 from tools.general.xml_utils import read_xml
 from tools.general.json_utils import read_json
-from tools.dataset.voc_utils import get_color_map_dic
+from tools.dataset.voc_utils import get_color_map_dic, get_color_map_dic_kvasir
 
 class Iterator:
     def __init__(self, loader):
@@ -65,10 +65,67 @@ class VOC_Dataset(torch.utils.data.Dataset):
 
     def get_tags(self, image_id):
         _, tags = read_xml(self.xml_dir + image_id + '.xml')
+        print('tags:', tags)
         return tags
     
     def __getitem__(self, index):
         image_id = self.image_id_list[index]
+
+        data_list = [self.get_image(image_id)]
+
+        if self.with_id:
+            data_list.append(image_id)
+
+        if self.with_tags:
+            data_list.append(self.get_tags(image_id))
+
+        if self.with_mask:
+            data_list.append(self.get_mask(image_id))
+        
+        return data_list
+
+class Kvasir_Dataset(torch.utils.data.Dataset):
+    def __init__(self, root_dir, domain, with_id=False, with_tags=True, with_mask=False):
+        self.root_dir = root_dir
+        self.tags = ['dyed-lifted-polyp',
+            'dyed-resection-margins',
+            'esophagitis',
+            'normal-cecum',
+            'normal-pylorus',
+            'normal-z-line', 
+            'polyps',
+            'ulcerative-colitis']
+
+        self.image_dir = self.root_dir + 'train/'
+        self.mask_dir = self.root_dir + '/masks'
+        self.with_tags = with_tags
+        self.image_id_list = [image_id.strip() for image_id in open('/home/charis/kul-thesis/OAA/scripts/data_kvasir/%s.txt'%domain).readlines()]
+        self.with_id = with_id
+        self.with_mask = with_mask
+
+    def __len__(self):
+        return len(self.image_id_list)
+
+    def get_image(self, image_id):
+        image = Image.open(self.image_dir + image_id + '.jpg').convert('RGB')
+        return image
+
+    def get_mask(self, image_id):
+        mask_path = self.mask_dir + image_id + '.jpg'
+        if os.path.isfile(mask_path):
+            mask = Image.open(mask_path)
+        else:
+            mask = None
+        return mask
+    
+    def get_tags(self, image_id):
+        tags = [image_id.split('/')[0]]
+        # print(tags)
+        return tags
+
+    def __getitem__(self, index):
+        image_id = self.image_id_list[index]
+        # print(image_id.split('/')[0])
 
         data_list = [self.get_image(image_id)]
 
@@ -198,8 +255,30 @@ class VOC_Dataset_For_Making_CAM(VOC_Dataset):
         self.colors = np.asarray([cmap_dic[class_name] for class_name in class_names])
         
         data = read_json('./data/VOC_2012.json')
+        # data = read_json('./data_kvasir/kvasir.json')
 
         self.class_names = np.asarray(class_names[1:21])
+        self.class_dic = data['class_dic']
+        self.classes = data['classes']
+        # print(self.class_dic)
+
+    def __getitem__(self, index):
+        image, image_id, tags, mask = super().__getitem__(index)
+        # print("tags:". tags)
+        label = one_hot_embedding([self.class_dic[tag] for tag in tags], self.classes)
+        return image, image_id, label, mask
+
+class Kvasir_Dataset_For_Making_CAM(Kvasir_Dataset):
+    def __init__(self, root_dir, domain):
+        super().__init__(root_dir, domain, with_id=True, with_mask=True)
+
+        cmap_dic, _, class_names = get_color_map_dic_kvasir()
+        self.colors = np.asarray([cmap_dic[class_name] for class_name in class_names])
+        
+        # data = read_json('./data/VOC_2012.json')
+        data = read_json('/home/charis/kul-thesis/OAA/scripts/data_kvasir/kvasir.json')
+
+        self.class_names = np.asarray(class_names[1:9])
         self.class_dic = data['class_dic']
         self.classes = data['classes']
 
@@ -236,3 +315,29 @@ class VOC_Dataset_For_Affinity(VOC_Dataset):
         
         return image, self.extract_aff_lab_func(label)
 
+class Kvasir_Dataset_For_Affinity(Kvasir_Dataset):
+    def __init__(self, root_dir, domain, path_index, label_dir, transform=None):
+        super().__init__(root_dir, domain, with_id=True)
+
+        data = read_json('./data_kvasir/kvasir.json')
+
+        self.class_dic = data['class_dic']
+        self.classes = data['classes']
+
+        self.transform = transform
+
+        self.label_dir = label_dir
+        self.path_index = path_index
+
+        self.extract_aff_lab_func = GetAffinityLabelFromIndices(self.path_index.src_indices, self.path_index.dst_indices)
+
+    def __getitem__(self, idx):
+        image, image_id = super().__getitem__(idx)
+        image_id = image_id.split('/')[-1]
+        label = imageio.imread(self.label_dir + image_id + '.png')
+        label = Image.fromarray(label)
+        
+        output_dic = self.transform({'image':image, 'mask':label})
+        image, label = output_dic['image'], output_dic['mask']
+        
+        return image, self.extract_aff_lab_func(label)

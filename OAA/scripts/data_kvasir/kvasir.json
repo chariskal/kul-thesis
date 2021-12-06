@@ -1,0 +1,90 @@
+{
+	"train": {
+		"dyed-lifted-polyps": 900,
+		"dyed-resection-margins": 900,
+		"esophagitis": 900,
+		"normal-cecum": 900,
+		"normal-pylorus": 900,
+		"normal-z-line": 900,
+		"polyps": 900,
+		"ulcerative-colitis": 900
+	},
+	"validation":  {
+		"dyed-lifted-polyps": 100,
+		"dyed-resection-margins": 100,
+		"esophagitis": 100,
+		"normal-cecum": 100,
+		"normal-pylorus": 100,
+		"normal-z-line": 100,
+		"polyps": 100,
+		"ulcerative-colitis": 100
+	},
+	"classes": 8,
+	"class_names": [
+		"dyed-lifted-polyps",
+		"dyed-resection-margins",
+		"esophagitis",
+		"normal-cecum",
+		"normal-pylorus",
+		"normal-z-line",
+		"polyps",
+		"ulcerative-colitis"
+	],
+	"class_dic": {
+		"dyed-lifted-polyps": 0,
+		"dyed-resection-margins": 1,
+		"esophagitis": 2,
+		"normal-cecum": 3,
+		"normal-pylorus": 4,
+		"normal-z-line": 5,
+		"polyps": 6,
+		"ulcerative-colitis": 7
+	},
+	"color_dict": {
+		"background": [
+			0,
+			0,
+			0
+		],
+		"dyed-lifted-polyps": [
+			128,
+			0,
+			0
+		],
+		"dyed-resection-margins": [
+			0,
+			128,
+			0
+		],
+		"esophagitis": [
+			128,
+			128,
+			0
+		],
+		"normal-cecum": [
+			0,
+			0,
+			128
+		],
+		"normal-pylorus": [
+			128,
+			0,
+			128
+		],
+		"normal-z-line": [
+			0,
+			128,
+			128
+		],
+		"polyps": [
+			128,
+			128,
+			128
+		],
+		"ulcerative-colitis": [
+			64,
+			0,
+			0
+		]
+	}
+}

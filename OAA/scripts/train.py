@@ -1,5 +1,5 @@
 import sys
-sys.path.append('OAA/')
+sys.path.append('/home/charis/kul-thesis/OAA')
 import torch
 import numpy as np
 import argparse                   # argument parser
@@ -12,15 +12,16 @@ import torch.optim as optim       # re-imports torch.optim as optim
 from models import vgg            # see ./models/vgg.py for backbone
 import torch.nn as nn     
 from torchvision import transforms
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from torch.autograd import Variable
 from utils import AverageMeter    # see ./utils/avg.Meter.py
 from utils.LoadData import train_data_loader      # see ./utils/LoadData.py
 from tqdm import trange, tqdm
 import kvasirv2.data
 import utils.imutils as imutils
 import neptune
+from torchvision import datasets
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+import torchvision
 
 NEPTUNE_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhMGUxMmQ1NC00ZDU4LTQ4ZGYtOWJjOC0xYTJkYjJmYmJiZDMifQ=='
 
@@ -28,6 +29,66 @@ NEPTUNE_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJ
 ROOT_DIR = '/'.join(os.getcwd().split('/')[:-1])
 print('Project Root Dir:', ROOT_DIR)
 
+class ExLoss(nn.Module):
+    def __init__(self):
+        super(ExLoss, self).__init__()
+
+    def forward(self, input, target):
+        print(input.size(), target.size())
+        assert(input.size() == target.size())
+        pos = torch.gt(target, 0.001)
+        neg = torch.le(target, 0.001)
+        pos_loss = -target[pos] * torch.log(torch.sigmoid(input[pos]))
+        neg_loss = -torch.log(1 - torch.sigmoid(input[neg]) + 1e-8)
+      
+        loss = 0.0
+        num_pos = torch.sum(pos)
+        num_neg = torch.sum(neg)
+        # print(num_pos, num_neg)
+        if num_pos > 0:
+            loss += 1.0 / num_pos.float() * torch.sum(pos_loss)
+        if num_neg > 0:
+            loss += 1.0 / num_neg.float() * torch.sum(neg_loss)
+      
+        return loss
+
+class ImageFolderWithPaths(datasets.ImageFolder):
+    def __getitem__(self, index):
+        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        path = self.imgs[index][0]
+        tuple_with_path = (original_tuple + (path,))
+        return tuple_with_path
+
+def get_data_loader(data_dir, batch_size=32, train=True):
+    # define how we augment the data for composing the batch-dataset in train and test step
+    transform = {
+        'train': transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(256),
+            transforms.Resize(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomRotation(90),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ]),
+        'test': transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(256),
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ]),
+    }
+
+    # ImageFolder with root directory and defined transformation methods for batch as well as data augmentation
+    if train:
+      data = ImageFolderWithPaths(root=data_dir, transform=transform['train'])
+    else:
+      data = ImageFolderWithPaths(root=data_dir, transform=transform['test'])
+    data_loader = torch.utils.data.DataLoader(dataset=data, batch_size=batch_size, shuffle=True, num_workers=2)
+
+    return data.class_to_idx, data_loader 
 
 def worker_init_fn(worker_id):
     np.random.seed(1 + worker_id)
@@ -60,12 +121,10 @@ def get_arguments():
 
     return parser.parse_args()    # parse argu
 
-def save_checkpoint(args, state, is_best, filename='checkpoint.pth.tar'):     #save points during training
+def save_checkpoint(args, state, filename='checkpoint.pth.tar'):     #save points during training
     savepath = os.path.join(args.snapshot_dir, filename)
     print(savepath)
     torch.save(state, savepath)
-    if is_best:     #if current epoch is best, then save checkpoint
-        shutil.copyfile(savepath, os.path.join(args.snapshot_dir, 'model_best.pth.tar'))
 
 def get_model(args):    # get modified VGG
     model = vgg.vgg16(pretrained=True, num_classes=args.num_classes, att_dir=args.att_dir, training_epoch=args.epoch)
@@ -78,141 +137,172 @@ def get_model(args):    # get modified VGG
         {'params': param_groups[3], 'lr': 20*args.lr}], momentum=0.9, weight_decay=args.weight_decay, nesterov=True)
 
     return  model, optimizer
-
-def validate(model, val_loader):
-    print('\nvalidating ... ', flush=True, end='')
-    val_loss = AverageMeter()
-    model.eval()
     
-    with torch.no_grad():
-        for idx, dat in tqdm(enumerate(val_loader)):
-            img_name, img, label = dat
-            label = label.cuda(non_blocking=True)
-            logits = model(img)
-            if len(logits.shape) == 1:
-                logits = logits.reshape(label.shape)
-            loss_val = F.multilabel_soft_margin_loss(logits, label)   
-            val_loss.update(loss_val.data.item(), img.size()[0])
+def validate(model, val_loader, loss, criterion, total_samples):
+    model.eval()
+    corrects = 0
+    total_sum = 0
+    total_loss = 0.0
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    print('validating loss:', val_loss.avg)
+    with torch.no_grad():
+        for idx, dat in enumerate(val_loader,0):
+            imgs, lbls, _ = dat
+            imgs = imgs.to(device)
+            lbls = lbls.to(device)
+
+            outputs = model(imgs)
+            val_loss = criterion(outputs, lbls)
+
+            # the class with the highest energy is what we choose as prediction
+            _, predicted = torch.max(outputs.data, 1)
+            total_sum += lbls.size(0)
+            corrects += (predicted == lbls).sum().item()
+            total_loss += loss.item()
+
+    print('Acc val set: %f %%' % (
+        100 * corrects / total_sum))
+    print('Val loss: ', float(val_loss.cpu().numpy()))
+    average_loss = total_loss / total_samples
+    neptune.log_metric('val_loss', average_loss)
+    return average_loss
 
 def train(args):      # start training function
-    # parameters
-    batch_time = AverageMeter()                             # Computes and stores the average and current value, can also resets to 0
-    losses = AverageMeter()
-    
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # criterion = ExLoss()
+    criterion = F.multilabel_soft_margin_loss
+    # criterion = torch.nn.CrossEntropyLoss()
+
     total_epoch = args.epoch
     global_counter = args.global_counter
     current_epoch = args.current_epoch
     model, optimizer = get_model(args)                      # call get_model(), get modified VGG and optimizer
+    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=5, verbose=True)
+    mapping, train_loader = get_data_loader(data_dir=args.data_root+'train', batch_size=args.batch_size, train=True)
+    mapping, val_loader = get_data_loader(data_dir=args.data_root+'test', batch_size=args.batch_size, train=False)
 
-    mean_vals = [0.485, 0.485, 0.485]                       # find actual mean values
-    std_vals = [0.335, 0.335, 0.335]
+    import matplotlib.pyplot as plt
+    import numpy as np
 
-    train_dataset = kvasirv2.data.KvasirClsDataset(args.train_list, dataset_root=args.data_root,
-                                               transform=transforms.Compose([
-                        imutils.RandomResizeLong(448, 768),
-                        transforms.RandomHorizontalFlip(),
-                        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-                        np.asarray,
-                        transforms.Normalize(mean_vals, std_vals),
-                        imutils.RandomCrop(args.crop_size),
-                        imutils.HWC_to_CHW,
-                        torch.from_numpy
-                    ]))  # get class for train dataset
+    # function to show an imag
+    def imshow(img):
+        img = img / 2 + 0.5     # unnormalize
+        npimg = img.numpy()
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+        plt.show()
 
-    test_dataset = kvasirv2.data.KvasirClsDataset(args.test_list, dataset_root=args.data_root,
-                                transform=transforms.Compose([
-        imutils.RandomResizeLong(448, 768),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-        np.asarray,
-        transforms.Normalize(mean_vals, std_vals),
-        imutils.RandomCrop(args.crop_size),
-        imutils.HWC_to_CHW,
-        torch.from_numpy
-    ]))  # get class for test dataset
+    # get some random training images
+    # dataiter = iter(val_loader)
+    # images, labels, _ = dataiter.next()
+    
 
-
-    # train_loader, val_loader = train_data_loader(args)      # load data
     run = neptune.init(project_qualified_name='ch.kalavritinos/OAA', api_token=NEPTUNE_TOKEN)
-
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                                   shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True,
-                                   worker_init_fn=worker_init_fn)
-
-    val_loader = DataLoader(test_dataset, batch_size=args.batch_size,
-                                   shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True,
-                                   worker_init_fn=worker_init_fn)
 
     max_step = total_epoch*len(train_loader)
     args.max_step = max_step 
     print('Max step:', max_step)
     
-    print(model)
+    # print(model)
     model.train()                                           # actually train the model
-    end = time.time()                                       # check how much time it took
+    # end = time.time()                                       # check how much time it took
 
+    global_counter = 0
+    best_val_loss = float('inf')
+    current_epoch = 0
+
+    print('Training started ...')
     PARAMS = {'dataset':args.dataset,
-                    'network':args.network,
-                    'epoch_nr': args.max_epoches,
-                    'batch_size': args.batch_size,
-                    'optimizer': 'SGD',
-                    'lr1': args.lr,}
-
-    neptune.create_experiment(args.session_name+'train_cam', params=PARAMS)
-
+                'network':'vgg16',
+                'epoch_nr': args.epoch,
+                'batch_size': args.batch_size,
+                'optimizer': 'SGD',
+                'lr': args.lr
+        }
+    neptune.create_experiment('kvasirv2_train', params=PARAMS)
 
     while current_epoch < total_epoch:
         model.train()
-        losses.reset()                                      # reset losses to 0
-        batch_time.reset()    
-        res = my_optim.reduce_lr(args, optimizer, current_epoch)
-        steps_per_epoch = len(train_loader)
+        # losses.reset()                                      # reset losses to 0
+        # batch_time.reset()    
+        total_loss = 0.0
+        corrects = 0
+        total_samples = 0
         
-        validate(model, val_loader)                         # loss validation
+        # validate(model, val_loader)                         # loss validation
         index = 0  
         for idx, dat in enumerate(train_loader):
-            img_name, img, label = dat
-            label = label.cuda(non_blocking=True)
-            #print(f'img shape: {np.shape(img)}')
+            img, label, fname = dat
+            img = img.to(device)
+            label = label.to(device)
+            print(img.max(), img.min())
+            # label = torch.reshape(label, (label.shape[0], 1))
+            # print(img.shape, img.size())
+            # print(label.shape, label.size())
+            # imshow(torchvision.utils.make_grid(img.cpu()))
+            optimizer.zero_grad()
+            # forward + backward + optimize
             logits = model(img, current_epoch, label, index)
             index += args.batch_size
-
+            print(logits.max(), logits.min())
             if len(logits.shape) == 1:
+                print("YES")
                 logits = logits.reshape(label.shape)
-            loss_val = F.multilabel_soft_margin_loss(logits, label)
-            
-            optimizer.zero_grad()
-            loss_val.backward()
-            optimizer.step()
+            # print(logits.shape)
+            # print(logits == logits, label == label)
 
-            losses.update(loss_val.data.item(), img.size()[0])
-            batch_time.update(time.time() - end)
+            loss = criterion(logits, label)
+            _, predicted = torch.max(logits, 1)
+            corrects += torch.sum(predicted == label)
+            total_samples += label.size(0)
+
+            print(loss.item())
+
+            loss.backward()
+            optimizer.step()
+            global_counter += 1
+
+            # losses.update(loss.data.item(), img.size()[0])
+            # batch_time.update(time.time() - end)
             end = time.time()
             
-            global_counter += 1
-            if global_counter % 1000 == 0:
-                losses.reset()
-
-            if global_counter % args.disp_interval == 0:
-                print('Epoch: [{}][{}/{}]\t'
-                      'LR: {:.5f}\t' 
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
-                        current_epoch, global_counter%len(train_loader), len(train_loader), 
-                        optimizer.param_groups[0]['lr'], loss=losses))
-                neptune.log_metric('val_loss', loss_val.data.item())
+            total_loss = total_loss + loss.item()
+            # print(total_loss)
+            if idx % args.disp_interval == args.disp_interval - 1:    # print every X mini-batches
+                print('[Epoch %d, step %4d] loss: %.3f, corrects: %d, acc: %.3f' %
+                    (current_epoch + 1, idx + 1, total_loss/args.disp_interval, corrects, 1.0*corrects/total_samples))
+                neptune.log_metric('train_loss', total_loss/args.disp_interval)
                 neptune.log_metric('lr', optimizer.param_groups[0]['lr'])
+                total_loss = 0.0
 
-        if current_epoch == args.epoch-1:
-            save_checkpoint(args,
+        average_accuracy = 100 * corrects / total_samples
+        average_loss = total_loss / total_samples
+
+        val_loss = validate(model, val_loader, loss, criterion, total_samples)
+        scheduler.step(val_loss)
+        neptune.log_metric('epoch_train_acc', average_accuracy)
+        neptune.log_metric('epoch_train_avg_loss', average_loss)
+        print('Avg accuracy: ', average_accuracy)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            save_checkpoint(
+                            {'epoch': current_epoch,
+                                'global_counter': global_counter,
+                                'state_dict':model.state_dict(),
+                                'optimizer':optimizer.state_dict()
+                            },
+                            filename='%s_epoch_%d.pth' %(args.dataset, current_epoch))
+            
+        if current_epoch == total_epoch - 1:
+            save_checkpoint(
                             {
                                 'epoch': current_epoch,
                                 'global_counter': global_counter,
                                 'state_dict':model.state_dict(),
                                 'optimizer':optimizer.state_dict()
-                            }, is_best=False,
+                            },
                             filename='%s_epoch_%d.pth' %(args.dataset, current_epoch))
+                
         current_epoch += 1
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ class VGG(nn.Module):
             nn.ReLU(True),
             nn.Conv2d(512, 512, kernel_size=3, padding=1),
             nn.ReLU(True),
-            nn.Conv2d(512,num_classes,1)                    # include 4 new conv layers, last one has 20 outputs for the 20 classes of VOC
+            nn.Conv2d(512, num_classes, kernel_size=1)                    # include 4 new conv layers, last one has 20 outputs for the 20 classes of VOC
         )
         self._initialize_weights()
         self.training_epoch = training_epoch

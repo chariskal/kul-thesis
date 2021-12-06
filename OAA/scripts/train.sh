@@ -1,16 +1,14 @@
 #!/bin/sh
-cd /esat/izar/r0833114/OAA
-source /esat/christianso/r0833114/miniconda3/etc/profile.d/conda.sh
-conda activate wsss
-EXP=exp1
+cd /home/charis/kul-thesis/OAA
+EXP=exp9
 
-/esat/christianso/r0833114/miniconda3/envs/wsss/bin/python ./scripts/train.py \
-    --data_root='/esat/izar/r0833114/kvasir_v2/' \
-    --train_list='kvasirv2/train.txt' \
-    --test_list='kvasirv2/val.txt' \
+python ./scripts/train.py \
+    --data_root='/home/charis/kul-thesis/kvasir-dataset-v2-new/' \
+    --train_list='kvasirv2/train_new.txt' \
+    --test_list='kvasirv2/val_new.txt' \
     --epoch=14 \
     --lr=0.001 \
-    --batch_size=4 \
+    --batch_size=8 \
     --dataset=kvasir \
     --input_size=256 \
     --disp_interval=100 \

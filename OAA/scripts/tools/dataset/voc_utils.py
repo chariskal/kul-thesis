@@ -41,3 +41,32 @@ def get_color_map_dic():
         cmap_image[color_index * h : (color_index + 1) * h, :] = cmap[color_index]
     
     return cmap_dic, cmap_image, labels
+
+
+def get_color_map_dic_kvasir():
+    labels = ['dyed-lifted-polyp',
+            'dyed-resection-margins',
+            'esophagitis',
+            'normal-cecum',
+            'normal-pylorus',
+            'normal-z-line', 
+            'polyps',
+            'ulcerative-colitis']
+
+    # n_classes = 21
+    n_classes = len(labels)
+    
+    h = 20
+    w = 500
+
+    color_index_list = [index for index in range(n_classes)]
+
+    cmap = color_map()
+    cmap_dic = {label : cmap[color_index] for label, color_index in zip(labels, range(n_classes))}
+    cmap_image = np.empty((h * len(labels), w, 3), dtype = np.uint8)
+    
+    for color_index in color_index_list:
+        cmap_image[color_index * h : (color_index + 1) * h, :] = cmap[color_index]
+    
+    return cmap_dic, cmap_image, labels
+

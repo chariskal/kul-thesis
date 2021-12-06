@@ -77,7 +77,7 @@ def get_adam(args, model):
 
     return opt
 
-def reduce_lr(optimizer, epoch, decay_points = '5,10',factor=0.1):
+def reduce_lr(optimizer, epoch, decay_points = '5,10', factor=0.1):
     # if 'coco' in args.dataset:
     #     change_points = [1,2,3,4,5]
     # elif 'imagenet' in args.dataset:

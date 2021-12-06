@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
 from core.networks import AffinityNet
-from core.datasets import VOC_Dataset_For_Affinity, Iterator
+from core.datasets import VOC_Dataset_For_Affinity, Iterator, Kvasir_Dataset_For_Affinity
 from tools.general.io_utils import create_directory, str2bool
 from tools.general.time_utils import Timer
 from tools.general.json_utils import read_json, write_json
@@ -59,7 +59,7 @@ parser.add_argument('--print_ratio', default=0.1, type=float)
 parser.add_argument('--tag', default='', type=str)
 
 parser.add_argument('--pred_dir', default='/home/charis/kul-thesis/OAA/scripts/experiments/predictions/', type=str)
-parser.add_argument('--label_name', default='ResNet50@Puzzle@acc@train@scale=0.5,1.0,1.5,2.0@aff_fg=0.40_bg=0.10', type=str)
+parser.add_argument('--label_name', default='ResNet50-kvasir@Puzzle@acc@train@scale=0.5,1.0,1.5,2.0@aff_fg=0.40_bg=0.10', type=str)
 
 if __name__ == '__main__':
     ###################################################################################
@@ -101,12 +101,13 @@ if __name__ == '__main__':
         Resize_For_Mask(args.image_size // 4),
     ])
     
-    meta_dic = read_json('./data/VOC_2012.json')
+    # meta_dic = read_json('./data/VOC_2012.json')
+    meta_dic = read_json('./data_kvasir/kvasir.json')
     class_names = np.asarray(meta_dic['class_names'])
     
     path_index = PathIndex(radius=10, default_size=(args.image_size // 4, args.image_size // 4))
 
-    train_dataset = VOC_Dataset_For_Affinity(args.data_dir, 'train_aug', path_index=path_index, label_dir=args.pred_dir + '{}/'.format(args.label_name), transform=train_transform)
+    train_dataset = Kvasir_Dataset_For_Affinity(args.data_dir, 'train', path_index=path_index, label_dir=args.pred_dir + '{}/'.format(args.label_name), transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
     
     log_func('[i] mean values is {}'.format(imagenet_mean))
@@ -177,8 +178,9 @@ if __name__ == '__main__':
     torch.autograd.set_detect_anomaly(True)
 
     for iteration in range(max_iteration):
-        images, labels = train_iterator.get()
-
+        pack = train_iterator.get()
+        # print(len(pack))
+        images, labels = pack[0], pack[1]
         images = images.cuda()
 
         bg_pos_label = labels[0].cuda(non_blocking=True)

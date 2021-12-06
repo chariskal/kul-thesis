@@ -1,7 +1,7 @@
 import imageio
 import sys
-sys.path.append('/content/drive/MyDrive/MAI/thesis/source/OAA')
-
+# sys.path.append('/content/drive/MyDrive/MAI/thesis/source/OAA')
+sys.path.append('/home/charis/kul-thesis/OAA')
 import os
 import cv2
 import torch
@@ -38,7 +38,7 @@ def get_arguments():
     parser.add_argument("--input_size", type=int, default=256)
     parser.add_argument("--dataset", type=str, default='voc2012')
     parser.add_argument("--num_classes", type=int, default=20)
-    parser.add_argument("--num_workers", type=int, default=20)
+    parser.add_argument("--num_workers", type=int, default=12)
     parser.add_argument("--restore_from", type=str, default='')
     parser.add_argument("--out_cam", default="./results_voc/results_cam", type=str)
     parser.add_argument("--out_crf", default="./results_voc/results_crf", type=str) 
@@ -96,7 +96,7 @@ def validate(args):
             # print(dat)
             label = label_in.cuda(non_blocking=True)
             logits = model(img)
-            last_featmaps = model.module.get_heatmaps()
+            last_featmaps = model.get_heatmaps()
 
             cv_im = cv2.imread(img_name[0])
             cv_im_gray = cv2.cvtColor(cv_im, cv2.COLOR_BGR2GRAY)
@@ -111,6 +111,7 @@ def validate(args):
                 # print(maps)
                 img_name_path = img_name[0].split('/')[-1][:-4]
                 im_name = args.save_dir + img_name[0].split('/')[-1][:-4]
+                # print(im_name)
                 labels = label_in.long().numpy()[0]
                 for i in range(int(args.num_classes)):
                     if labels[i] == 1:

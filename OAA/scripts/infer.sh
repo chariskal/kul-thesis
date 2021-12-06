@@ -1,18 +1,16 @@
 #!/bin/sh
-EXP=exp2
+EXP=exp9
 
-cd /esat/izar/r0833114/OAA
-source /esat/christianso/r0833114/miniconda3/etc/profile.d/conda.sh
-conda activate wsss
+cd /home/charis/kul-thesis/OAA
 
-/esat/christianso/r0833114/miniconda3/envs/wsss/bin/python ./scripts/infer.py \
-    --img_dir=/esat/izar/r0833114/VOCdevkit/VOC2012/JPEGImages/ \
-    --infer_list=./voc12/val_oaa.txt \
+python ./scripts/infer.py \
+    --img_dir=/home/charis/kul-thesis/kvasir-dataset-v2-new/test \
+    --infer_list=/home/charis/kul-thesis/OAA/kvasirv2/val_new.txt \
     --batch_size=1 \
-    --dataset=pascal_voc \
+    --dataset=kvasir \
     --input_size=256 \
-	--num_classes=20 \
-    --restore_from=./checkpoints/train/${EXP}/pascal_voc_epoch_14.pth \
-    --save_dir=/esat/izar/r0833114/OAA/results_voc/${EXP}/attention/ \
-    --out_cam=/esat/izar/r0833114/OAA/results_voc/${EXP}/results_cam \
-    --out_crf=/esat/izar/r0833114/OAA/results_voc/${EXP}/results_crf \
+	--num_classes=8 \
+    --restore_from=./checkpoints/train/${EXP}/kvasirv2_epoch_15.pth \
+    --save_dir=./results_kvasir/${EXP}/attention/ \
+    --out_cam=./results_kvasir/${EXP}/results_cam \
+    --out_crf=./results_kvasir/${EXP}/results_crf \

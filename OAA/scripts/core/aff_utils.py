@@ -85,13 +85,15 @@ def edge_to_affinity(edge, paths_indices):
         if isinstance(paths_indices[i], np.ndarray):
             paths_indices[i] = torch.from_numpy(paths_indices[i])
         paths_indices[i] = paths_indices[i].cuda(non_blocking=True)
-
-    for ind in paths_indices:
-        ind_flat = ind.view(-1)
-        dist = torch.index_select(edge, dim=-1, index=ind_flat)
-        dist = dist.view(dist.size(0), ind.size(0), ind.size(1), ind.size(2))
-        aff = torch.squeeze(1 - F.max_pool2d(dist, (dist.size(2), 1)), dim=2)
-        aff_list.append(aff)
+    try:
+        for ind in paths_indices:
+            ind_flat = ind.view(-1)
+            dist = torch.index_select(edge, dim=-1, index=ind_flat)
+            dist = dist.view(dist.size(0), ind.size(0), ind.size(1), ind.size(2))
+            aff = torch.squeeze(1 - F.max_pool2d(dist, (dist.size(2), 1)), dim=2)
+            aff_list.append(aff)
+    except:
+        pass
     aff_cat = torch.cat(aff_list, dim=1)
 
     return aff_cat

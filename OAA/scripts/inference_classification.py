@@ -159,9 +159,11 @@ if __name__ == '__main__':
         
         # inferenece
         _, features = model(images, with_cam=True)
+        print('features:', features.shape)
 
         # postprocessing
         cams = F.relu(features)
+        print('cams.shape:', cams.shape)
         cams = cams[0] + cams[1].flip(-1)
 
         return cams
