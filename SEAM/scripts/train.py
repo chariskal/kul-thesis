@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/esat/izar/r0833114/SEAM')
+sys.path.append('/home/charis/kul-thesis/SEAM')
 import numpy as np
 import torch
 import random
@@ -14,6 +14,55 @@ import argparse
 import importlib
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
+import torchvision
+
+class ImageFolderWithPaths(torchvision.datasets.ImageFolder):
+    def __getitem__(self, index):
+        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        path = self.imgs[index][0]
+        tuple_with_path = (original_tuple + (path,))
+        return tuple_with_path
+
+def get_data_loader(data_dir, batch_size=32, train=True):
+    # define how we augment the data for composing the batch-dataset in train and test step
+    transform = {
+        'train': transforms.Compose([
+            imutils.RandomResizeLong(448, 768),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomRotation(90),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ]),
+        'test': transforms.Compose([
+            imutils.RandomResizeLong(448, 768),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ]),
+    }
+
+    # ImageFolder with root directory and defined transformation methods for batch as well as data augmentation
+    if train:
+      data = ImageFolderWithPaths(root=data_dir, transform=transform['train'])
+    else:
+      data = ImageFolderWithPaths(root=data_dir, transform=transform['test'])
+    data_loader = torch.utils.data.DataLoader(dataset=data, batch_size=batch_size, shuffle=True, num_workers=2)
+
+    return data.class_to_idx, data_loader 
+
+def save_checkpoint(state, filename='checkpoint.pth.tar'):     # save points during training
+    """Function for saving checkpoints"""
+    snapshot_dir = './'
+    savepath = os.path.join(snapshot_dir, filename)
+    print(savepath)
+    torch.save(state, savepath)
+    print(f"Model saved to {savepath}")
+    
+def load_ckp(checkpoint_fpath, model, optimizer):
+    checkpoint = torch.load(checkpoint_fpath)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return model, optimizer, checkpoint['epoch']+1, checkpoint['global_counter']
 
 def adaptive_min_pooling_loss(x):
     # This loss does not affect the highest performance, but change the optimial background score (alpha)
@@ -31,23 +80,55 @@ def max_onehot(x):
     x[:,1:,:,:][x[:,1:,:,:] != x_max] = 0
     return x
 
+def validate(model, criterion, total_samples):
+  device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+  model.eval()
+  corrects = 0
+  total_sum = 0
+  total_loss = 0.0
+  with torch.no_grad():
+      for idx, dat in enumerate(test_data_loader,0):
+          imgs, lbls, _ = dat
+          imgs = imgs.to(device)
+          lbls = lbls.to(device)
+
+          outputs = model(imgs)
+          val_loss = criterion(outputs, lbls)
+
+          # the class with the highest energy is what we choose as prediction
+          _, predicted = torch.max(outputs.data, 1)
+          total_sum += lbls.size(0)
+          corrects += (predicted == lbls).sum().item()
+          total_loss += loss.item()
+
+  print('Acc val set: %f %%' % (
+      100 * corrects / total_sum))
+  print('Val loss: ', float(val_loss.cpu().numpy()))
+  average_loss = total_loss / total_samples
+  neptune.log_metric('val_loss', average_loss)
+  return average_loss
+
 if __name__ == '__main__':
+    import neptune
+    NEPTUNE_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhMGUxMmQ1NC00ZDU4LTQ4ZGYtOWJjOC0xYTJkYjJmYmJiZDMifQ=='
+    run = neptune.init(project_qualified_name='ch.kalavritinos/SEAM', api_token=NEPTUNE_TOKEN)
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", default=4, type=int)                # batch size
     parser.add_argument("--max_epoches", default=8, type=int)               # maximum # of epochs   
     parser.add_argument("--network", default="network.resnet38_SEAM", type=str)     # use the default resnet38
     parser.add_argument("--lr", default=0.01, type=float)                   #learning rate
-    parser.add_argument("--num_workers", default=8, type=int)               # number of workers    
+    parser.add_argument("--num_workers", default=12, type=int)               # number of workers    
     parser.add_argument("--wt_dec", default=5e-4, type=float)               # weight decay
-    parser.add_argument("--train_list", default="voc12/train_aug.txt", type=str)    # list of training set
-    parser.add_argument("--val_list", default="voc12/val.txt", type=str)            # list of validation set
+    parser.add_argument("--train_list", default="kvasirv2/train.txt", type=str)    # list of training set
+    parser.add_argument("--val_list", default="kvasirv2/val.txt", type=str)            # list of validation set
     parser.add_argument("--session_name", default="resnet38_SEAM", type=str)        # give this training sess a name
     parser.add_argument("--crop_size", default=448, type=int)                       # fixed crop size for the images
     parser.add_argument("--weights", required=True, type=str)                       # givethem the pre-trained weights
-    parser.add_argument("--data_root", default='VOC2012', type=str)                # root of the VOC dir
+    parser.add_argument("--data_root", default='/home/charis/kul-thesis/kvasir-dataset-v2-new/', type=str)                # root of the VOC dir
     parser.add_argument("--tblog_dir", default='./tblog', type=str)                 # tblog dir    
     args = parser.parse_args()
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     pyutils.Logger(args.session_name + '.log')          # save a new log file
     print(vars(args))                                   # print input args
     
@@ -55,40 +136,13 @@ if __name__ == '__main__':
 
     #print(model)                                        # print model args
     tblogger = SummaryWriter(args.tblog_dir)	        # print summary
+    train_dir = args.data_root + "train/"
+    test_dir = args.data_root + "test/"
+    mapping, train_data_loader = get_data_loader(data_dir=train_dir, batch_size=8, train=True)
+    mapping, test_data_loader = get_data_loader(data_dir=test_dir, batch_size=8, train=False)
 
-    # train_dataset = voc12.data.VOC12ClsDataset(args.train_list, voc12_root=args.data_root,
-    #                                            transform=transforms.Compose([
-    #                     imutils.RandomResizeLong(448, 768),
-    #                     transforms.RandomHorizontalFlip(),
-    #                     transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-    #                     np.asarray,
-    #                     model.normalize,
-    #                     imutils.RandomCrop(args.crop_size),
-    #                     imutils.HWC_to_CHW,
-    #                     torch.from_numpy
-    #                 ]))  # get class for train dataset
-    # print('before making dataset...')
-
-    train_dataset = kvasirv2.data.KvasirClsDataset(args.train_list, dataset_root=args.data_root,
-                                               transform=transforms.Compose([
-                        imutils.RandomResizeLong(448, 768),
-                        transforms.RandomHorizontalFlip(),
-                        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-                        np.asarray,
-                        model.normalize,
-                        imutils.RandomCrop(args.crop_size),
-                        imutils.HWC_to_CHW,
-                        torch.from_numpy
-                    ]))  # get class for train dataset
-    # print('after')      # print type of dataset
-    def worker_init_fn(worker_id):
-        np.random.seed(1 + worker_id)
-    # Load train data uing default DataLoader
-    train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                                   shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True,
-                                   worker_init_fn=worker_init_fn)
-    max_step = len(train_dataset) // args.batch_size * args.max_epoches             # calc step
-    # print('max_step done')
+    
+    max_step = len(train_data_loader) * args.max_epoches             # calc step
     param_groups = model.get_parameter_groups()
     optimizer = torchutils.PolyOptimizer([              # use polyoptimizer 
         {'params': param_groups[0], 'lr': args.lr, 'weight_decay': args.wt_dec},
@@ -98,35 +152,46 @@ if __name__ == '__main__':
     ], lr=args.lr, weight_decay=args.wt_dec, max_step=max_step)
 
     if args.weights[-7:] == '.params':              # if file ends with .params extension import resnet38d
-        # print('yes .params')
         import network.resnet38d
-        # print(" resnet38d imported")
         assert 'resnet38' in args.network
         weights_dict = network.resnet38d.convert_mxnet_to_torch(args.weights)
-        # print('weights loaded')
     else:
         weights_dict = torch.load(args.weights)
-    # print('weights loaded')
     model.load_state_dict(weights_dict, strict=False)           # load state dict
-    # print('state dict loaded')
     model = torch.nn.DataParallel(model).cuda()
-    # print('parallel model ok')
     model.train()
-    # print('train ok')
+
+    global_counter = 0
+    best_val_loss = float('inf')
+    current_epoch = 0
+
+    print('Training started ...')
+    PARAMS = {'dataset':'kvasir',
+                'network':'vgg16',
+                'epoch_nr': args.max_epoches,
+                'batch_size': args.batch_size,
+                'optimizer': 'SGD',
+                'lr': args.lr
+      }
+    neptune.create_experiment('kvasirv2_train', params=PARAMS)
 
     avg_meter = pyutils.AverageMeter('loss', 'loss_cls', 'loss_er', 'loss_ecr')         # final loss = l_cls + l_er + l_ecr
 
     timer = pyutils.Timer("Session started: ")
-    for ep in range(args.max_epoches):
-
-        for iter, pack in enumerate(train_data_loader):
-
+    while current_epoch < args.max_epoches:
+        total_loss = 0.0
+        corrects = 0
+        total_samples = 0
+        for iter, dat in enumerate(train_data_loader):
             scale_factor = 0.3
-            img1 = pack[1]
-            img2 = F.interpolate(img1,scale_factor=scale_factor,mode='bilinear',align_corners=True) 
+            inputs, labels, fname = dat
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            img1 = dat[0]
+            img2 = F.interpolate(img1, scale_factor=scale_factor, mode='bilinear', align_corners=True) 
             N,C,H,W = img1.size()       # get dims
-            #print(N, C, H, W)
-            label = pack[2]             # get label
+            label = labels             # get label
             #print(label)
             bg_score = torch.ones((N,1))
             label = torch.cat((bg_score, label), dim=1)
@@ -141,6 +206,9 @@ if __name__ == '__main__':
             cam_rv1 = F.interpolate(visualization.max_norm(cam_rv1),scale_factor=scale_factor,mode='bilinear',align_corners=True)*label
 
             cam2, cam_rv2 = model(img2)
+            _, predicted = torch.max(cam2, 1)
+            corrects += torch.sum(predicted == labels)
+            total_samples += labels.size(0)
             label2 = F.adaptive_avg_pool2d(cam2, (1,1))
             loss_rvmin2 = adaptive_min_pooling_loss((cam_rv2*label)[:,1:,:,:])
             cam2 = visualization.max_norm(cam2)*label
@@ -168,6 +236,7 @@ if __name__ == '__main__':
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            global_counter += 1
 
             avg_meter.add({'loss': loss.item(), 'loss_cls': loss_cls.item(), 'loss_er': loss_er.item(), 'loss_ecr': loss_ecr.item()})
 
@@ -225,11 +294,17 @@ if __name__ == '__main__':
                 tblogger.add_images('CAM2', CAM2, itr)
                 tblogger.add_images('CAM_RV1', CAM_RV1, itr)
                 tblogger.add_images('CAM_RV2', CAM_RV2, itr)
+        save_checkpoint(
+                            {
+                                'epoch': current_epoch,
+                                'global_counter': global_counter,
+                                'state_dict':model.state_dict(),
+                                'optimizer':optimizer.state_dict()
+                            },
+                            filename='%s_epoch_%d.pth' %('kvasir_', current_epoch))
+            
+        current_epoch += 1
 
-        else:
-            print('')
-            timer.reset_stage()
-
-    torch.save(model.module.state_dict(),'pretrained_model/' + args.session_name + '.pth')           # save final model
+    # torch.save(model.module.state_dict(),'pretrained_model/' + args.session_name + '.pth')           # save final model
 
          
