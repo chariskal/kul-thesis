@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/esat/izar/r0833114/SGAN')
+# sys.path.append('/esat/izar/r0833114/SGAN')
 import os, pickle
 import os.path as osp
 import numpy as np
@@ -12,7 +12,7 @@ from lib.network.sgan import SGAN
 import torch
 from torch.utils.data import DataLoader
 import argparse
-from ipdb import set_trace
+# from ipdb import set_trace
 import matplotlib.pyplot as plt
 from lib.utils import pyutils
 
@@ -242,7 +242,6 @@ if __name__ == '__main__':
             _, h, w, c = np_cams.shape
 
             for k, name in enumerate(names):
-
                 # get output cam
                 im_label = im_tags[name]
                 im_h, im_w = sizes[k]
