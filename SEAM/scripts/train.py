@@ -5,7 +5,7 @@ import torch
 import random
 import cv2
 import os
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import voc12.data
 import kvasirv2.data
@@ -15,6 +15,15 @@ import importlib
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
 import torchvision
+import torch
+import torch.nn as nn
+import torch.utils.model_zoo as model_zoo        # Loads the Torch serialized object at the given URL
+import torch.nn.functional as F
+import math
+import cv2
+import numpy as np
+import os
+from torchvision import datasets, models
 
 class ImageFolderWithPaths(torchvision.datasets.ImageFolder):
     def __getitem__(self, index):
@@ -23,32 +32,26 @@ class ImageFolderWithPaths(torchvision.datasets.ImageFolder):
         tuple_with_path = (original_tuple + (path,))
         return tuple_with_path
 
-def get_data_loader(data_dir, batch_size=32, train=True):
-    # define how we augment the data for composing the batch-dataset in train and test step
-    transform = {
-        'train': transforms.Compose([
-            imutils.RandomResizeLong(448, 768),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
-            transforms.RandomRotation(90),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        ]),
-        'test': transforms.Compose([
-            imutils.RandomResizeLong(448, 768),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        ]),
-    }
+class MyLazyDataset(Dataset):
+    def __init__(self, dataset, transform=None):
+        self.dataset = dataset
+        self.transform = transform
 
-    # ImageFolder with root directory and defined transformation methods for batch as well as data augmentation
-    if train:
-      data = ImageFolderWithPaths(root=data_dir, transform=transform['train'])
-    else:
-      data = ImageFolderWithPaths(root=data_dir, transform=transform['test'])
-    data_loader = torch.utils.data.DataLoader(dataset=data, batch_size=batch_size, shuffle=True, num_workers=2)
+    def __getitem__(self, index):
+        if self.transform:
+            x = self.transform(self.dataset[index][0])
+        else:
+            x = self.dataset[index][0]
+        y = self.dataset[index][1]
+        names = self.dataset[index][2]
+        return x, y, names
 
-    return data.class_to_idx, data_loader 
+    def __len__(self):
+        return len(self.dataset)
+
+    def set_transform(self, transform):
+        self.transform = transform
+
 
 def save_checkpoint(state, filename='checkpoint.pth.tar'):     # save points during training
     """Function for saving checkpoints"""
@@ -138,8 +141,49 @@ if __name__ == '__main__':
     tblogger = SummaryWriter(args.tblog_dir)	        # print summary
     train_dir = args.data_root + "train/"
     test_dir = args.data_root + "test/"
-    mapping, train_data_loader = get_data_loader(data_dir=train_dir, batch_size=8, train=True)
-    mapping, test_data_loader = get_data_loader(data_dir=test_dir, batch_size=8, train=False)
+
+    train_dataset = ImageFolderWithPaths(train_dir)
+    val_dataset = ImageFolderWithPaths(test_dir)
+    class_names = train_dataset.classes
+    num_classes = len(class_names)
+
+    transform = {
+        "train": transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(256),
+                transforms.Resize(224),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.RandomRotation(90),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+            ]
+        ),
+        "test": transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(256),
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+            ]
+        ),
+    }
+
+    train_set = MyLazyDataset(train_dataset, transform["train"])
+    val_set = MyLazyDataset(val_dataset, transform["test"])
+
+    train_data_loader = DataLoader(
+        dataset=train_set, batch_size=args.batch_size, shuffle=True, num_workers=4
+    )
+    test_data_loader = DataLoader(
+        dataset=val_set, batch_size=args.batch_size, shuffle=False, num_workers=4
+    )
+
+
+    # mapping, train_data_loader = get_data_loader(data_dir=train_dir, batch_size=8, train=True)
+    # mapping, test_data_loader = get_data_loader(data_dir=test_dir, batch_size=8, train=False)
 
     
     max_step = len(train_data_loader) * args.max_epoches             # calc step
