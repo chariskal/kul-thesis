@@ -116,7 +116,7 @@ if __name__ == '__main__':
     NEPTUNE_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJhMGUxMmQ1NC00ZDU4LTQ4ZGYtOWJjOC0xYTJkYjJmYmJiZDMifQ=='
     run = neptune.init(project_qualified_name='ch.kalavritinos/SEAM', api_token=NEPTUNE_TOKEN)
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", default=4, type=int)                # batch size
+    parser.add_argument("--batch_size", default=1, type=int)                # batch size
     parser.add_argument("--max_epoches", default=8, type=int)               # maximum # of epochs   
     parser.add_argument("--network", default="network.resnet38_SEAM", type=str)     # use the default resnet38
     parser.add_argument("--lr", default=0.01, type=float)                   #learning rate

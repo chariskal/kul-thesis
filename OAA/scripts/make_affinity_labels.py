@@ -60,7 +60,7 @@ if __name__ == '__main__':
     ###################################################################################
     args = parser.parse_args()
 
-    experiment_name = 'ResNet50-kvasir@Puzzle@acc@train@scale=0.5,1.0,1.5,2.0'
+    experiment_name = 'kvasir/ResNet50@Puzzle@acc@train@scale=0.5,1.0,1.5,2.0'
     
     pred_dir = f'./experiments/predictions/{experiment_name}/'
     aff_dir = create_directory('./experiments/predictions/{}@aff_fg={:.2f}_bg={:.2f}/'.format(experiment_name, args.fg_threshold, args.bg_threshold))
@@ -84,20 +84,22 @@ if __name__ == '__main__':
     length = len(dataset)
     print(length)
     for step, (ori_image, image_id, _, _) in enumerate(dataset):
-        try:
+        # try:
             png_path = aff_dir + image_id.split('/')[-1] + '.png'
-            if os.path.isfile(png_path):
-                continue
+            # print(png_path)
+            # if os.path.isfile(png_path):
+            #     continue
 
             # load
             image = np.asarray(ori_image)
             cam_dict_arr = np.load(args.cam_path + image_id.split('/')[-1] + '.npy', allow_pickle=True)
             cam_dict = cam_dict_arr[()]
-
+            # print(cam_dict)
             ori_h, ori_w, c = image.shape
             
             keys_temp = list(cam_dict.keys())
             keys = [0]
+            # print('Keys:', keys_temp)
             for item in keys_temp:
                 keys.append(item+1)
             keys = np.array(keys)
@@ -106,9 +108,9 @@ if __name__ == '__main__':
             t = []
             for i, key in enumerate(cam_dict.keys()):
                     # print(cam_file[key].shape)
-                    t.append(cam_dict[key])
+                    t.append(-1*cam_dict[key])
             cams = np.stack(t, axis=0)
-            # print(cams.shape)
+            # print(np.max(cams))
             # cams = cam_dict['hr_cam']
 
             # 1. find confident fg & bg
@@ -129,12 +131,12 @@ if __name__ == '__main__':
             conf = fg_cam.copy()
             conf[fg_cam == 0] = 255
             conf[bg_cam + fg_cam == 0] = 0
-            
+            # print('conf')           
             imageio.imwrite(png_path, conf.astype(np.uint8))
-            
+            ('Wrote image')
             sys.stdout.write('\r# Convert [{}/{}] = {:.2f}%, ({}, {})'.format(step + 1, length, (step + 1) / length * 100, (ori_h, ori_w), conf.shape))
             sys.stdout.flush()
-        except:
-            continue
+        # except:
+        #     continue
 
     print()

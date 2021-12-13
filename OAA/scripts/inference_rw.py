@@ -50,7 +50,7 @@ parser = argparse.ArgumentParser()
 ###############################################################################
 parser.add_argument('--seed', default=0, type=int)
 parser.add_argument('--num_workers', default=12, type=int)
-parser.add_argument('--data_dir', default='/home/charis/kul-thesis/kvasir-dataset-v2-new', type=str)
+parser.add_argument('--data_dir', default='/home/charis/kul-thesis/kvasir-dataset-v2-new/', type=str)
 parser.add_argument('--scales', default='0.5,1.0,1.5,2.0', type=str)
 
 ###############################################################################
@@ -207,8 +207,9 @@ if __name__ == '__main__':
                     t.append(cv2.resize(cam_dict[key], (strided_size[1], strided_size[0]), interpolation = cv2.INTER_CUBIC))
                     # t.append(image_resize(cam_dict[key], width=125))
             cams = np.stack(t, axis=0)
+            cams = torch.from_numpy(cams)
 
-            cams = cam_dict['cam']
+            # cams = cam_dict['cam']
             
             cam_downsized_values = cams.cuda()
             # print(cam_downsized_values.shape)

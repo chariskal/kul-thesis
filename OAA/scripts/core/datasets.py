@@ -332,9 +332,12 @@ class Kvasir_Dataset_For_Affinity(Kvasir_Dataset):
         self.extract_aff_lab_func = GetAffinityLabelFromIndices(self.path_index.src_indices, self.path_index.dst_indices)
 
     def __getitem__(self, idx):
-        image, image_id = super().__getitem__(idx)
-        image_id = image_id.split('/')[-1]
-        label = imageio.imread(self.label_dir + image_id + '.png')
+        image_id = super().__getitem__(idx)
+        # print(image_id)
+        # image_id = image_id.split('/')[-1]
+        image = image_id[0]
+
+        label = imageio.imread(self.label_dir + image_id[1].split('/')[-1] + '.png')
         label = Image.fromarray(label)
         
         output_dic = self.transform({'image':image, 'mask':label})
