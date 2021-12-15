@@ -272,19 +272,19 @@ class Kvasir_Dataset_For_Making_CAM(Kvasir_Dataset):
     def __init__(self, root_dir, domain):
         super().__init__(root_dir, domain, with_id=True, with_mask=True)
 
-        cmap_dic, _, class_names = get_color_map_dic_kvasir()
+        cmap_dic, _, class_names = get_color_map_dic_kvasir()       # class_names is labels
         self.colors = np.asarray([cmap_dic[class_name] for class_name in class_names])
         
         # data = read_json('./data/VOC_2012.json')
         data = read_json('/home/charis/kul-thesis/OAA/scripts/data_kvasir/kvasir.json')
 
-        self.class_names = np.asarray(class_names[1:9])
-        self.class_dic = data['class_dic']
-        self.classes = data['classes']
+        self.class_names = np.asarray(class_names[1:9])     # labels
+        self.class_dic = data['class_dic']                  # mapping
+        self.classes = data['classes']          # this is number of classes 8
 
     def __getitem__(self, index):
         image, image_id, tags, mask = super().__getitem__(index)
-
+        print(tags)
         label = one_hot_embedding([self.class_dic[tag] for tag in tags], self.classes)
         return image, image_id, label, mask
 

@@ -62,7 +62,7 @@ parser.add_argument('--architecture', default='resnet50', type=str)
 # Inference parameters
 ###############################################################################
 parser.add_argument('--model_name', default='', type=str)
-parser.add_argument('--cam_path', default='/home/charis/kul-thesis/OAA/results_kvasir/exp9/results_cam/', type=str)
+parser.add_argument('--cam_path', default='/home/charis/kul-thesis/OAA/results_kvasir/exp10/results_cam/', type=str)
 
 parser.add_argument('--cam_dir', default='', type=str)
 parser.add_argument('--domain', default='train', type=str)
@@ -186,19 +186,24 @@ if __name__ == '__main__':
 
             # inference
             edge = model.get_edge(images)
-            # print(type(edge), edge.shape)
+            print(type(edge), edge.shape)
 
             npy_path = pred_dir + image_id + '.npy'
             strided_size = get_strided_size((ori_h, ori_w), 4)
             strided_up_size = get_strided_up_size((ori_h, ori_w), 16)
+            print(strided_size, strided_up_size)
 
 
             # postprocessing
             cam_dict = np.load(args.cam_path + image_id.split('/')[-1] + '.npy', allow_pickle=True).item()
+            # print(cam_dict[0].shape)
             keys_temp = list(cam_dict.keys())
+            # print(keys_temp)
             keys = [0]
             for item in keys_temp:
-                keys.append(item+1)
+                keys.append(item.cpu()+1)
+                # print(keys)
+            # keys = keys.cpu().numpy()
             keys = np.array(keys)
 
             t = []
@@ -208,13 +213,14 @@ if __name__ == '__main__':
                     # t.append(image_resize(cam_dict[key], width=125))
             cams = np.stack(t, axis=0)
             cams = torch.from_numpy(cams)
+            print('cams shape: ', cams.shape)
 
             # cams = cam_dict['cam']
             
             cam_downsized_values = cams.cuda()
-            # print(cam_downsized_values.shape)
+            print(cam_downsized_values.shape)
             rw = propagate_to_edge(cam_downsized_values, edge, beta=args.beta, exp_times=args.exp_times, radius=5)
-            
+            print('rw: ', rw.shape)
             rw_up = F.interpolate(rw, scale_factor=4, mode='bilinear', align_corners=False)[..., 0, :ori_h, :ori_w]
             rw_up = rw_up / torch.max(rw_up)
             

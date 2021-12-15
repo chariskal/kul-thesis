@@ -59,7 +59,7 @@ parser.add_argument('--print_ratio', default=0.1, type=float)
 parser.add_argument('--tag', default='', type=str)
 
 parser.add_argument('--pred_dir', default='/home/charis/kul-thesis/OAA/scripts/experiments/predictions/kvasir/', type=str)
-parser.add_argument('--label_name', default='ResNet50@Puzzle@acc@train@scale=0.5,1.0,1.5,2.0@aff_fg=0.40_bg=0.10', type=str)
+parser.add_argument('--label_name', default='ResNet50@Puzzle@acc@train@scale=0.5,1.0,1.5,2.0@aff_fg=0.30_bg=0.10', type=str)
 
 if __name__ == '__main__':
     ###################################################################################
